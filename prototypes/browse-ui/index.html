@@ -1,0 +1,481 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Answers issue #7: "What should the main screen look like for
+  browsing/searching Videos and spotting outliers across Channels?"
+  Four structurally different variants on one page, switchable via ?variant=A|B|C|D
+  (floating bar at the bottom, or ← / → keys). All data is fake, generated in memory.
+  Outlier score follows docs/research/outlier-video-definition.md: views / median of up to
+  15 nearest-in-time, same-format, >=30-day-old Videos of the same Channel (floor 1,000),
+  hidden under 5 neighbours, dimmed under 10.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browse UI prototype</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #fff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+    --accent: #3355dd;
+    --t0: #8a8a8f; --t1: #3b82f6; --t2: #7c3aed; --t3: #c026d3; --t4: #dc2626; --under: #a16207;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+  input, select, button { font: inherit; }
+  button { cursor: pointer; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  mark { background: #fde68a; padding: 0 1px; border-radius: 2px; }
+
+  /* shared app header */
+  .apphead { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: #16161a; color: #eee; }
+  .apphead b { letter-spacing: .3px; }
+  .apphead .sync { margin-left: auto; font-size: 12px; color: #aaa; }
+
+  /* score chip */
+  .chip { display: inline-block; min-width: 46px; text-align: center; padding: 1px 6px; border-radius: 10px;
+          font-weight: 600; font-size: 12px; color: #fff; background: var(--t0); white-space: nowrap; }
+  .chip.t0 { background: #ececec; color: #555; }
+  .chip.t1 { background: var(--t1); } .chip.t2 { background: var(--t2); }
+  .chip.t3 { background: var(--t3); } .chip.t4 { background: var(--t4); }
+  .chip.under { background: #fef3c7; color: var(--under); }
+  .chip.na { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+  .chip.dim { opacity: .5; }
+  .tag { display: inline-block; font-size: 11px; padding: 0 5px; border-radius: 4px; background: #eef; color: #449; margin-left: 4px; }
+  .tag.imm { background: #e7f6ec; color: #276738; }
+  .tag.top { background: #f3e8ff; color: #6b21a8; }
+
+  /* ---------- Variant A: table + facets ---------- */
+  .a-wrap { display: grid; grid-template-columns: 260px 1fr; height: calc(100vh - 41px); }
+  .a-side { border-right: 1px solid var(--line); background: var(--panel); overflow: auto; padding: 14px; }
+  .a-side h4 { margin: 16px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .a-side input[type=search] { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .a-side label { display: flex; gap: 6px; align-items: center; padding: 2px 0; font-size: 13px; }
+  .a-side label span.c { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .a-main { overflow: auto; }
+  .a-head { position: sticky; top: 0; background: var(--bg); padding: 10px 14px; border-bottom: 1px solid var(--line); z-index: 2; }
+  table.grid { border-collapse: collapse; width: 100%; background: var(--panel); }
+  table.grid th { position: sticky; top: 41px; background: #fafafa; text-align: left; font-weight: 600; font-size: 12px;
+                  padding: 6px 8px; border-bottom: 1px solid var(--line); cursor: pointer; white-space: nowrap; z-index: 1; }
+  table.grid th.on { color: var(--accent); }
+  table.grid td { padding: 5px 8px; border-bottom: 1px solid #f0f0ee; white-space: nowrap; }
+  table.grid td.title { white-space: normal; min-width: 280px; }
+  table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.grid tr:hover td { background: #f5f7ff; }
+
+  /* ---------- Variant B: topic board ---------- */
+  .b-wrap { max-width: 1200px; margin: 0 auto; padding: 18px; }
+  .b-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .b-bar input[type=search] { flex: 1; min-width: 220px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .b-topic { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; padding: 12px 14px; }
+  .b-topic header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .b-topic h3 { margin: 0; font-size: 16px; }
+  .b-rank { font-weight: 700; color: var(--muted); width: 24px; }
+  .b-stat b { font-size: 15px; }
+  .b-heat { display: flex; gap: 2px; margin: 8px 0 10px; }
+  .b-heat i { flex: 1; height: 8px; border-radius: 2px; background: #eee; }
+  .b-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .b-card { flex: 0 0 220px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fcfcfb; cursor: pointer; }
+  .b-card:hover { border-color: var(--accent); }
+  .b-card .t { font-weight: 600; margin: 6px 0 4px; font-size: 13px; }
+  .b-under { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+  /* ---------- Variant C: channel swimlanes ---------- */
+  .c-wrap { padding: 14px 18px 80px; }
+  .c-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .c-bar input[type=search] { width: 280px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .c-row { display: grid; grid-template-columns: 210px 1fr; align-items: center; background: var(--panel);
+           border-bottom: 1px solid var(--line); }
+  .c-row .meta { padding: 6px 10px; font-size: 12px; }
+  .c-row .meta b { font-size: 13px; }
+  .c-row svg { display: block; width: 100%; height: 56px; }
+  .c-axis { display: grid; grid-template-columns: 210px 1fr; font-size: 11px; color: var(--muted); }
+  .c-axis div.ticks { display: flex; justify-content: space-between; padding: 2px 0; }
+  circle.dot { cursor: pointer; }
+
+  /* ---------- Variant D: search-first split ---------- */
+  .d-top { padding: 22px 18px 10px; text-align: center; }
+  .d-top input { width: min(720px, 100%); padding: 12px 16px; font-size: 17px; border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .d-filters { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .d-filters select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+  .d-sum { max-width: 1200px; margin: 6px auto 10px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; gap: 22px; flex-wrap: wrap; }
+  .d-sum div b { display: block; font-size: 18px; }
+  .d-split { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 14px; padding: 0 18px 80px; }
+  .d-list { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .d-item { display: grid; grid-template-columns: 60px 1fr auto; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f0f0ee; cursor: pointer; align-items: center; }
+  .d-item.sel { background: #eef2ff; }
+  .d-item:hover { background: #f5f7ff; }
+  .d-pane { position: sticky; top: 10px; align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; max-height: calc(100vh - 20px); overflow: auto; }
+
+  /* shared detail + drawer */
+  .drawer { position: fixed; top: 0; right: 0; width: 440px; max-width: 100%; height: 100vh; background: var(--panel);
+            box-shadow: -4px 0 20px rgba(0,0,0,.12); padding: 16px; overflow: auto; z-index: 50; }
+  .drawer .x { float: right; border: 0; background: none; font-size: 20px; }
+  .det h2 { font-size: 17px; margin: 0 0 4px; }
+  .det .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 10px 0; font-size: 13px; }
+  .det .kv span:nth-child(odd) { color: var(--muted); }
+  .det h4 { margin: 14px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .det .sib { display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
+
+  /* prototype switcher — deliberately not part of the design */
+  #switcher { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 100;
+              display: flex; align-items: center; gap: 4px; background: #111; color: #fff; padding: 6px; border-radius: 999px;
+              box-shadow: 0 6px 24px rgba(0,0,0,.35); font: 600 13px system-ui; }
+  #switcher button { background: #333; color: #fff; border: 0; width: 30px; height: 30px; border-radius: 50%; font-size: 15px; }
+  #switcher button:hover { background: #555; }
+  #switcher span { padding: 0 12px; min-width: 240px; text-align: center; }
+  #switcher span::before { content: "PROTOTYPE · "; color: #f59e0b; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="switcher"><button id="prev" title="Previous (←)">‹</button><span id="vlabel"></span><button id="next" title="Next (→)">›</button></div>
+<script>
+// ===================== fake data =====================
+let seed = 20261024;
+const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+const pick = a => a[Math.floor(rnd() * a.length)];
+const gauss = () => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd());
+const DAY = 864e5, TODAY = Date.UTC(2026, 9, 24);
+
+const FILL = {
+  prod: ['RTX 5070', 'RX 9070 XT', 'M5 MacBook Air', 'Steam Deck 2', 'Pixel 11', 'Galaxy S26', 'Framework 16', 'Raspberry Pi 6', 'ThinkPad X1', 'Ryzen 7 9800X3D'],
+  n: ['3', '5', '7', '10', '12', '15', '20', '50'], price: ['$300', '$500', '$700', '$1000', '$1500'], yr: ['2025', '2026'],
+  os: ['Arch', 'Fedora', 'Ubuntu', 'Mint', 'NixOS', 'Pop!_OS'], old: ['Amiga 500', 'Commodore 64', 'IBM 5150', 'Game Boy', 'iMac G3', 'ThinkPad T60'],
+};
+const TOPICS = [
+  { name: 'GPU reviews', lift: 0.0, t: ['{prod} review: is it worth it?', '{prod} vs {prod}: which should you buy', 'I tested the {prod} in {n} games', 'The {prod} nobody is talking about'] },
+  { name: 'Budget PC builds', lift: 0.6, t: ['I built a {price} gaming PC', 'The best {price} PC build in {yr}', '{price} PC vs PS5 Pro', 'Building a {price} PC from Marketplace parts'] },
+  { name: 'Laptop buying guides', lift: 0.1, t: ['Best laptops for students {yr}', "Don't buy the {prod} until you watch this", '{n} laptops I would actually buy', 'Which {prod} should you get?'] },
+  { name: 'Mechanical keyboards', lift: -0.2, t: ['{n} keyboards under $100', 'I built my dream keyboard', 'Lubing switches: worth it?', 'The quietest keyboard I own'] },
+  { name: 'Home lab & servers', lift: 0.35, t: ['My {yr} home lab tour', 'I turned an old PC into a NAS', 'Self-hosting {n} apps on a {prod}', 'Why everyone needs a home server'] },
+  { name: 'Smartphone comparisons', lift: 0.05, t: ['{prod} vs {prod} camera test', '{prod} after {n} months', 'The phone I regret buying', 'Is the {prod} actually better?'] },
+  { name: 'Retro computing', lift: 0.45, t: ['Restoring a {old}', 'I found a {old} in the trash', 'Can a {old} run in {yr}?', 'What is inside a {old}?'] },
+  { name: 'Linux desktop', lift: 0.25, t: ['I used {os} for {n} days', '{os} vs {os} in {yr}', 'Why I left Windows for {os}', '{n} things {os} does better'] },
+  { name: 'Desk setups', lift: -0.1, t: ['My {yr} desk setup', '{n} desk upgrades under $50', 'Minimal desk setup tour', 'Fixing my messy desk'] },
+  { name: 'Tech news recaps', lift: -0.45, t: ['Tech news: {prod} leaks', 'This week in tech #{n}', 'The {prod} launch went badly', '{n} stories you missed this week'] },
+  { name: 'Repair & teardown', lift: 0.3, t: ['{prod} teardown: can you fix it?', 'Fixing a broken {prod}', 'I repaired {n} dead consoles', 'Why the {prod} is impossible to repair'] },
+  { name: 'AI tools', lift: 0.4, t: ['I let AI build my PC', '{n} AI tools I actually use', 'Running a local LLM on a {prod}', 'Is AI coming for tech YouTube?'] },
+  { name: 'Monitor reviews', lift: -0.15, t: ['Best monitors under {price}', 'OLED burn-in after {n} months', '{n} monitors compared', 'The monitor I recommend most'] },
+];
+const fill = t => t.replace(/\{(\w+)\}/g, (_, k) => pick(FILL[k]));
+const sig3 = x => { const p = Math.pow(10, Math.floor(Math.log10(x)) - 2); return Math.round(x / p) * p; };
+
+const CH_NAMES = ['Byte Bench', 'Circuit Sunday', 'Lowpoly Labs', 'Kernel Panic TV', 'Desk Theory', 'Solder & Spite', 'Frame Budget', 'Patch Notes Daily',
+  'Retro Relay', 'Silicon Shed', 'Homelab Hours', 'Pocket Teardown', 'Clockspeed', 'Tiny Server Club', 'Pixel Pushers', 'The Benchmark Room',
+  'Open Source Odd', 'Wattage', 'Keycap Garden', 'Dual Boot Diaries'];
+
+const CHANNELS = [], VIDEOS = [];
+CH_NAMES.forEach((name, ci) => {
+  const subs = sig3(Math.pow(10, 3.8 + rnd() * 2.6));
+  const ch = { id: ci, name, subs, base: Math.log(subs * (0.03 + rnd() * 0.35)), sigma: 0.45 + rnd() * 0.45,
+               drift: gauss() * 0.15, shorts: rnd() < 0.3 ? 0 : rnd() * 0.45, spanDays: 300 + rnd() * 1900 };
+  const tps = []; while (tps.length < 4 + Math.floor(rnd() * 4)) { const t = Math.floor(rnd() * TOPICS.length); if (!tps.includes(t)) tps.push(t); }
+  ch.topics = tps;
+  CHANNELS.push(ch);
+  const n = 80 + Math.floor(rnd() * 420);
+  for (let i = 0; i < n; i++) {
+    const age = Math.max(1, Math.floor(Math.pow(rnd(), 1.3) * ch.spanDays));
+    const short = rnd() < ch.shorts;
+    const dur = short ? (rnd() < 0.8 ? 15 + Math.floor(rnd() * 45) : 61 + Math.floor(rnd() * 119)) : 300 + Math.floor(rnd() * 2400);
+    const topic = pick(tps);
+    let lv = ch.base - ch.drift * age / 365 + TOPICS[topic].lift + (short ? 0.7 : 0) + gauss() * (ch.sigma + (short ? 0.2 : 0));
+    if (rnd() < 0.025) lv += 1.0 + rnd() * 1.6; // viral hit
+    let views = Math.exp(lv);
+    if (age < 30) views *= 0.3 + 0.7 * Math.sqrt(age / 30); // still accumulating
+    views = Math.max(40, Math.round(views));
+    VIDEOS.push({ id: VIDEOS.length, ch: ci, title: fill(pick(TOPICS[topic].t)) + (short ? ' #shorts' : ''), topic, age,
+                  t: TODAY - age * DAY, dur, fmt: dur <= 60 ? 'short' : dur <= 180 ? 'mid' : 'long', views });
+  }
+});
+
+// ===================== outlier score (per docs/research/outlier-video-definition.md) =====================
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+CHANNELS.forEach(ch => {
+  ['short', 'mid', 'long'].forEach(fmt => {
+    const vids = VIDEOS.filter(v => v.ch === ch.id && v.fmt === fmt).sort((a, b) => a.t - b.t);
+    const pool = vids.filter(v => v.age >= 30);
+    const p90 = pool.length >= 20 ? [...pool].map(v => v.views).sort((a, b) => a - b)[Math.floor(pool.length * 0.9)] : Infinity;
+    vids.forEach(v => {
+      let r = pool.findIndex(p => p.t >= v.t); if (r < 0) r = pool.length;
+      let l = r - 1; const nb = [];
+      while (nb.length < 15 && (l >= 0 || r < pool.length)) {
+        const L = pool[l], R = pool[r];
+        const takeL = R === undefined || (L !== undefined && v.t - L.t <= R.t - v.t);
+        const c = takeL ? pool[l--] : pool[r++];
+        if (c !== v) nb.push(c);
+      }
+      v.n = nb.length; v.nbrs = nb;
+      v.base = Math.max(1000, nb.length ? median(nb.map(x => x.views)) : 0);
+      v.score = v.n >= 5 ? v.views / v.base : null;
+      v.top10 = v.score != null && v.views >= p90;
+      v.outlier = v.score != null && (v.score >= 3 || v.top10);
+      v.fluke = v.score != null && (v.score >= 20 || (v.score >= 3 && v.n < 10));
+      v.vpd = v.views / v.age;
+    });
+  });
+  const mine = VIDEOS.filter(v => v.ch === ch.id && v.score != null);
+  ch.count = VIDEOS.filter(v => v.ch === ch.id).length;
+  ch.outliers = mine.filter(v => v.outlier).length;
+  ch.rate = mine.length ? ch.outliers / mine.length : 0;
+  ch.medianLong = median(VIDEOS.filter(v => v.ch === ch.id && v.fmt === 'long' && v.age >= 30).map(v => v.views).concat([0]));
+});
+
+// ===================== shared helpers =====================
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtN = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(Math.round(n));
+const fmtS = s => s == null ? '—' : s < 10 ? s.toFixed(1) + '×' : Math.round(s) + '×';
+const fmtDate = t => new Date(t).toISOString().slice(0, 10);
+const fmtAge = d => d < 30 ? d + 'd' : d < 365 ? Math.round(d / 30) + 'mo' : (d / 365).toFixed(1) + 'y';
+const FMT_LABEL = { short: 'Short', mid: '61–180s', long: 'Long-form' };
+const tier = s => s == null ? 'na' : s >= 10 ? 't4' : s >= 5 ? 't3' : s >= 3 ? 't2' : s >= 2 ? 't1' : s <= 0.5 ? 'under' : 't0';
+const TIER_NAME = { t4: 'exceptional', t3: 'breakout', t2: 'strong', t1: 'notable', t0: 'normal', under: 'under', na: 'no score' };
+const TIER_COLOR = { t4: '#dc2626', t3: '#c026d3', t2: '#7c3aed', t1: '#3b82f6', t0: '#b5b5ba', under: '#d4a017', na: '#ddd' };
+const chip = v => {
+  const tip = v.score == null ? `Fewer than 5 comparable videos (n=${v.n})`
+    : `${TIER_NAME[tier(v.score)]}: vs median of ${v.n} videos (baseline ${fmtN(v.base)} views)` + (v.n < 10 ? ' · low confidence' : '') + (v.fluke ? ' · check baseline / possible fluke' : '');
+  return `<span class="chip ${tier(v.score)} ${v.n < 10 ? 'dim' : ''}" title="${esc(tip)}">${fmtS(v.score)}${v.fluke ? ' ⚠' : ''}</span>`;
+};
+const tags = v => (v.age < 30 ? '<span class="tag imm" title="Under 30 days old: still accumulating views">immature</span>' : '') +
+                  (v.top10 && v.score < 3 ? '<span class="tag top" title="In the channel’s top 10%">top 10%</span>' : '');
+const highlight = (title, q) => {
+  let h = esc(title);
+  q.toLowerCase().split(/\s+/).filter(w => w.length > 1).forEach(w => {
+    h = h.replace(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>');
+  });
+  return h;
+};
+const matchQ = (v, q) => !q || q.toLowerCase().split(/\s+/).every(w => v.title.toLowerCase().includes(w) || TOPICS[v.topic].name.toLowerCase().includes(w));
+const appHead = () => `<div class="apphead"><b>YT-StrategizeR</b><span class="small">${CHANNELS.length} channels · ${VIDEOS.length.toLocaleString()} videos</span><span class="sync">Last Sync 2026-10-23 · fake data</span></div>`;
+
+// Neighbour bar chart: the baseline made visible.
+function baselineChart(v) {
+  const all = [...v.nbrs, v].sort((a, b) => a.t - b.t);
+  const max = Math.max(...all.map(x => x.views), v.base * 3.2);
+  const W = 400, H = 120, bw = W / all.length;
+  const y = val => H - 14 - (val / max) * (H - 24);
+  const bars = all.map((x, i) => `<rect x="${i * bw + 2}" y="${y(x.views)}" width="${bw - 4}" height="${H - 14 - y(x.views)}" fill="${x === v ? TIER_COLOR[tier(v.score)] : '#d6d6db'}"><title>${esc(x.title)} — ${fmtN(x.views)}</title></rect>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${bars}
+    <line x1="0" x2="${W}" y1="${y(v.base)}" y2="${y(v.base)}" stroke="#333" stroke-dasharray="4 3"/><text x="${W - 2}" y="${y(v.base) - 3}" font-size="10" text-anchor="end">median ${fmtN(v.base)}</text>
+    <line x1="0" x2="${W}" y1="${y(v.base * 3)}" y2="${y(v.base * 3)}" stroke="#7c3aed" stroke-dasharray="2 3"/><text x="${W - 2}" y="${y(v.base * 3) - 3}" font-size="10" text-anchor="end" fill="#7c3aed">3× line</text>
+    <text x="0" y="${H - 2}" font-size="10" fill="#888">${fmtDate(all[0].t)}</text><text x="${W}" y="${H - 2}" font-size="10" fill="#888" text-anchor="end">${fmtDate(all[all.length - 1].t)}</text></svg>`;
+}
+function detailHTML(v) {
+  const ch = CHANNELS[v.ch];
+  const sibs = VIDEOS.filter(x => x.topic === v.topic && x.fmt === v.fmt && x.ch !== v.ch && x.outlier).sort((a, b) => b.score - a.score).slice(0, 6);
+  return `<div class="det"><h2>${esc(v.title)}</h2>
+    <div>${chip(v)} ${tags(v)} <span class="muted small">${TIER_NAME[tier(v.score)]}</span></div>
+    <div class="kv"><span>Channel</span><span>${esc(ch.name)} · ${fmtN(ch.subs)} subs</span>
+      <span>Topic</span><span>${esc(TOPICS[v.topic].name)}</span>
+      <span>Published</span><span>${fmtDate(v.t)} (${fmtAge(v.age)} ago)</span>
+      <span>Format</span><span>${FMT_LABEL[v.fmt]} · ${Math.floor(v.dur / 60)}:${String(v.dur % 60).padStart(2, '0')}</span>
+      <span>Views</span><span>${v.views.toLocaleString()}${v.age < 30 ? ` · ${fmtN(v.vpd)}/day pace` : ''}</span>
+      <span>Baseline</span><span>median of ${v.n} nearest-in-time ${FMT_LABEL[v.fmt]} videos = ${fmtN(v.base)}</span></div>
+    <h4>Baseline neighbours</h4>${v.n ? baselineChart(v) : '<p class="muted">No comparable videos.</p>'}
+    <h4>Same Topic, outliers on other Channels</h4>
+    ${sibs.length ? sibs.map(x => `<div class="sib">${chip(x)}<span>${esc(x.title)} <span class="muted small">— ${esc(CHANNELS[x.ch].name)}</span></span></div>`).join('') : '<p class="muted small">None — this Topic hasn’t broken out elsewhere.</p>'}
+  </div>`;
+}
+function openDrawer(v) {
+  let d = document.querySelector('.drawer');
+  if (!d) { d = document.createElement('div'); d.className = 'drawer'; document.body.appendChild(d); }
+  d.innerHTML = `<button class="x" title="Close (Esc)">×</button>` + detailHTML(v);
+  d.querySelector('.x').onclick = () => d.remove();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelector('.drawer')?.remove(); });
+
+// ===================== Variant A — dense table with facet sidebar =====================
+function VariantA(root) {
+  const st = { q: '', chs: new Set(), topics: new Set(), fmt: 'long', min: 3, imm: true, sort: 'score', dir: -1 };
+  root.innerHTML = appHead() + `<div class="a-wrap"><aside class="a-side">
+      <input type="search" id="aq" placeholder="Search titles…">
+      <h4>Outlier score ≥ <b id="aminv">3×</b></h4><input type="range" id="amin" min="0" max="10" step="0.5" value="3" style="width:100%">
+      <label><input type="checkbox" id="aimm" checked> Include immature (&lt;30d)</label>
+      <h4>Format</h4>${['long', 'mid', 'short', 'all'].map(f => `<label><input type="radio" name="afmt" value="${f}" ${f === 'long' ? 'checked' : ''}> ${FMT_LABEL[f] || 'All formats'}</label>`).join('')}
+      <h4>Channels</h4>${[...CHANNELS].sort((a, b) => b.subs - a.subs).map(c => `<label><input type="checkbox" data-ch="${c.id}"> ${esc(c.name)}<span class="c">${fmtN(c.subs)}</span></label>`).join('')}
+      <h4>Topics</h4>${TOPICS.map((t, i) => `<label><input type="checkbox" data-tp="${i}"> ${esc(t.name)}<span class="c" data-tpc="${i}"></span></label>`).join('')}
+    </aside><main class="a-main"><div class="a-head" id="ahead"></div><table class="grid"><thead><tr>
+      ${[['score', 'Score'], ['title', 'Title'], ['ch', 'Channel'], ['topic', 'Topic'], ['t', 'Published'], ['views', 'Views'], ['base', 'Baseline'], ['n', 'n'], ['vpd', 'Views/day']].map(([k, l]) => `<th data-k="${k}">${l}</th>`).join('')}
+    </tr></thead><tbody id="abody"></tbody></table></main></div>`;
+  const $ = s => root.querySelector(s);
+  const draw = () => {
+    const rows = VIDEOS.filter(v => (st.fmt === 'all' || v.fmt === st.fmt) && (st.imm || v.age >= 30) && (st.min === 0 || (v.score ?? 0) >= st.min)
+      && (!st.chs.size || st.chs.has(v.ch)) && matchQ(v, st.q));
+    const counts = {}; rows.forEach(v => counts[v.topic] = (counts[v.topic] || 0) + 1);
+    root.querySelectorAll('[data-tpc]').forEach(el => el.textContent = counts[el.dataset.tpc] || '');
+    const shown = rows.filter(v => !st.topics.size || st.topics.has(v.topic));
+    const key = { title: v => v.title, ch: v => CHANNELS[v.ch].name, topic: v => TOPICS[v.topic].name, score: v => v.score ?? -1 }[st.sort] || (v => v[st.sort]);
+    shown.sort((a, b) => (key(a) > key(b) ? 1 : key(a) < key(b) ? -1 : 0) * st.dir);
+    const chans = new Set(shown.map(v => v.ch)).size;
+    $('#ahead').innerHTML = `<b>${shown.length.toLocaleString()}</b> videos across <b>${chans}</b> channels <span class="muted small">· showing first ${Math.min(300, shown.length)} · click a header to sort · hover a chip for its baseline</span>`;
+    $('#abody').innerHTML = shown.slice(0, 300).map(v => `<tr data-id="${v.id}"><td>${chip(v)}${tags(v)}</td><td class="title">${highlight(v.title, st.q)}</td>
+      <td>${esc(CHANNELS[v.ch].name)}</td><td class="muted">${esc(TOPICS[v.topic].name)}</td><td class="muted">${fmtDate(v.t)}</td>
+      <td class="num">${fmtN(v.views)}</td><td class="num muted">${fmtN(v.base)}</td><td class="num muted">${v.n}</td><td class="num muted">${fmtN(v.vpd)}</td></tr>`).join('');
+    root.querySelectorAll('th').forEach(th => th.classList.toggle('on', th.dataset.k === st.sort));
+  };
+  $('#aq').oninput = e => { st.q = e.target.value.trim(); draw(); };
+  $('#amin').oninput = e => { st.min = +e.target.value; $('#aminv').textContent = st.min ? st.min + '×' : 'any'; draw(); };
+  $('#aimm').onchange = e => { st.imm = e.target.checked; draw(); };
+  root.querySelectorAll('[name=afmt]').forEach(r => r.onchange = e => { st.fmt = e.target.value; draw(); });
+  root.querySelectorAll('[data-ch]').forEach(c => c.onchange = e => { e.target.checked ? st.chs.add(+e.target.dataset.ch) : st.chs.delete(+e.target.dataset.ch); draw(); });
+  root.querySelectorAll('[data-tp]').forEach(c => c.onchange = e => { e.target.checked ? st.topics.add(+e.target.dataset.tp) : st.topics.delete(+e.target.dataset.tp); draw(); });
+  root.querySelectorAll('th').forEach(th => th.onclick = () => { if (st.sort === th.dataset.k) st.dir *= -1; else { st.sort = th.dataset.k; st.dir = ['title', 'ch', 'topic'].includes(th.dataset.k) ? 1 : -1; } draw(); });
+  $('#abody').onclick = e => { const tr = e.target.closest('tr'); if (tr) openDrawer(VIDEOS[tr.dataset.id]); };
+  draw();
+}
+
+// ===================== Variant B — Topic board: what wins across Channels =====================
+function VariantB(root) {
+  const st = { q: '', fmt: 'long', min: 3, under: false };
+  root.innerHTML = appHead() + `<div class="b-wrap"><div class="b-bar">
+      <input type="search" id="bq" placeholder="Filter topics or titles…">
+      <select id="bfmt">${['long', 'mid', 'short', 'all'].map(f => `<option value="${f}">${FMT_LABEL[f] || 'All formats'}</option>`).join('')}</select>
+      <select id="bmin">${[2, 3, 5, 10].map(m => `<option value="${m}" ${m === 3 ? 'selected' : ''}>Outlier ≥ ${m}×</option>`).join('')}</select>
+      <label class="small"><input type="checkbox" id="bunder"> Show what fell flat (≤ 0.5×)</label>
+    </div><p class="muted small" style="margin:-4px 0 12px">Topics ranked by how many <b>different Channels</b> have an outlier in them — a Topic that breaks out on several Channels is a stronger signal than one viral Video.</p>
+    <div id="blist"></div></div>`;
+  const $ = s => root.querySelector(s);
+  const draw = () => {
+    const pool = VIDEOS.filter(v => (st.fmt === 'all' || v.fmt === st.fmt) && v.score != null && matchQ(v, st.q));
+    const rows = TOPICS.map((t, i) => {
+      const vs = pool.filter(v => v.topic === i);
+      const outs = vs.filter(v => v.score >= st.min);
+      const best = {}; outs.forEach(v => { if (!best[v.ch] || best[v.ch].score < v.score) best[v.ch] = v; });
+      const hist = [0, 0, 0, 0, 0, 0]; vs.forEach(v => hist[['under', 't0', 't1', 't2', 't3', 't4'].indexOf(tier(v.score))]++);
+      return { t, i, vs, outs, best: Object.values(best).sort((a, b) => b.score - a.score), chans: Object.keys(best).length,
+               on: new Set(vs.map(v => v.ch)).size, med: vs.length ? median(vs.map(v => v.score)) : 0, hist,
+               flat: vs.filter(v => v.score <= 0.5).sort((a, b) => a.score - b.score).slice(0, 8) };
+    }).filter(r => r.vs.length).sort((a, b) => b.chans - a.chans || b.med - a.med);
+    $('#blist').innerHTML = rows.map((r, k) => `<section class="b-topic"><header><span class="b-rank">${k + 1}</span><h3>${esc(r.t.name)}</h3>
+        <span class="b-stat"><b>${r.chans}</b> <span class="muted">of ${r.on} channels with outliers</span></span>
+        <span class="b-stat"><b>${r.outs.length}</b> <span class="muted">outliers / ${r.vs.length} videos</span></span>
+        <span class="b-stat"><span class="muted">median</span> <b>${fmtS(r.med)}</b></span></header>
+      <div class="b-heat" title="Share of videos per tier: under · normal · notable · strong · breakout · exceptional">${r.hist.map((h, j) => `<i style="flex:${h + 0.01};background:${['#d4a017', '#d6d6db', '#3b82f6', '#7c3aed', '#c026d3', '#dc2626'][j]}"></i>`).join('')}</div>
+      <div class="b-strip">${r.best.map(v => `<div class="b-card" data-id="${v.id}">${chip(v)}${tags(v)}<div class="t">${highlight(v.title, st.q)}</div>
+          <div class="small muted">${esc(CHANNELS[v.ch].name)} · ${fmtN(v.views)} views · ${fmtAge(v.age)}</div></div>`).join('') || '<span class="muted small">No outliers at this threshold.</span>'}</div>
+      ${st.under && r.flat.length ? `<div class="b-under"><span class="small muted">Fell flat:</span> <div class="b-strip" style="margin-top:6px">${r.flat.map(v => `<div class="b-card" data-id="${v.id}" style="flex-basis:200px">${chip(v)}<div class="t">${esc(v.title)}</div><div class="small muted">${esc(CHANNELS[v.ch].name)}</div></div>`).join('')}</div></div>` : ''}
+    </section>`).join('');
+  };
+  $('#bq').oninput = e => { st.q = e.target.value.trim(); draw(); };
+  $('#bfmt').onchange = e => { st.fmt = e.target.value; draw(); };
+  $('#bmin').onchange = e => { st.min = +e.target.value; draw(); };
+  $('#bunder').onchange = e => { st.under = e.target.checked; draw(); };
+  $('#blist').onclick = e => { const c = e.target.closest('[data-id]'); if (c) openDrawer(VIDEOS[c.dataset.id]); };
+  draw();
+}
+
+// ===================== Variant C — Channel swimlanes over time =====================
+function VariantC(root) {
+  const st = { q: '', fmt: 'long', topic: -1, sort: 'rate', years: 3 };
+  root.innerHTML = appHead() + `<div class="c-wrap"><div class="c-bar">
+      <input type="search" id="cq" placeholder="Highlight titles…">
+      <select id="ctp"><option value="-1">All topics</option>${TOPICS.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
+      <select id="cfmt">${['long', 'mid', 'short'].map(f => `<option value="${f}">${FMT_LABEL[f]}</option>`).join('')}</select>
+      <select id="cyrs"><option value="1">Last 12 months</option><option value="3" selected>Last 3 years</option><option value="6">Last 6 years</option></select>
+      <select id="csort"><option value="rate">Sort: outlier rate</option><option value="subs">Sort: subscribers</option><option value="name">Sort: name</option></select>
+      <span class="small muted">Each dot is a Video; height = score vs its Channel’s baseline (log). Dashed line = 3×. Click a dot.</span>
+    </div><div id="cax"></div><div id="crows"></div></div>`;
+  const $ = s => root.querySelector(s);
+  const LO = Math.log(0.2), HI = Math.log(40);
+  const draw = () => {
+    const from = TODAY - st.years * 365 * DAY;
+    const X = t => ((t - from) / (TODAY - from)) * 990 + 5;
+    const Y = s => 52 - (Math.min(HI, Math.max(LO, Math.log(s))) - LO) / (HI - LO) * 48;
+    const ticks = []; for (let i = 0; i <= 6; i++) ticks.push(fmtDate(from + (TODAY - from) * i / 6).slice(0, 7));
+    $('#cax').innerHTML = `<div class="c-axis"><div></div><div class="ticks">${ticks.map(t => `<span>${t}</span>`).join('')}</div></div>`;
+    const chans = [...CHANNELS].sort(st.sort === 'rate' ? (a, b) => b.rate - a.rate : st.sort === 'subs' ? (a, b) => b.subs - a.subs : (a, b) => a.name.localeCompare(b.name));
+    $('#crows').innerHTML = chans.map(ch => {
+      const vs = VIDEOS.filter(v => v.ch === ch.id && v.fmt === st.fmt && v.t >= from && v.score != null);
+      const lit = v => matchQ(v, st.q) && (st.topic < 0 || v.topic === st.topic);
+      const dots = vs.sort((a, b) => a.score - b.score).map(v => {
+        const on = lit(v), big = v.score >= 3;
+        return `<circle class="dot" data-id="${v.id}" cx="${X(v.t).toFixed(1)}" cy="${Y(v.score).toFixed(1)}" r="${big ? 4 : 2.2}" fill="${TIER_COLOR[tier(v.score)]}" opacity="${on ? (big ? 0.95 : 0.6) : 0.08}" ${v.n < 10 ? 'stroke="#fff" stroke-width="1"' : ''}><title>${esc(v.title)} — ${fmtS(v.score)}</title></circle>`;
+      }).join('');
+      const nOut = vs.filter(v => v.score >= 3 && lit(v)).length;
+      return `<div class="c-row"><div class="meta"><b>${esc(ch.name)}</b><br><span class="muted">${fmtN(ch.subs)} subs · median ${fmtN(ch.medianLong)}</span><br>
+        <span>${nOut} outliers</span> <span class="muted">· ${(ch.rate * 100).toFixed(0)}% rate</span></div>
+        <svg viewBox="0 0 1000 56" preserveAspectRatio="none"><line x1="0" x2="1000" y1="${Y(3)}" y2="${Y(3)}" stroke="#7c3aed" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity=".5"/>
+        <line x1="0" x2="1000" y1="${Y(1)}" y2="${Y(1)}" stroke="#ccc" vector-effect="non-scaling-stroke"/>${dots}</svg></div>`;
+    }).join('');
+  };
+  $('#cq').oninput = e => { st.q = e.target.value.trim(); draw(); };
+  $('#ctp').onchange = e => { st.topic = +e.target.value; draw(); };
+  $('#cfmt').onchange = e => { st.fmt = e.target.value; draw(); };
+  $('#cyrs').onchange = e => { st.years = +e.target.value; draw(); };
+  $('#csort').onchange = e => { st.sort = e.target.value; draw(); };
+  $('#crows').onclick = e => { const c = e.target.closest('[data-id]'); if (c) openDrawer(VIDEOS[c.dataset.id]); };
+  draw();
+}
+
+// ===================== Variant D — search-first, the query itself gets scored =====================
+function VariantD(root) {
+  const st = { q: '', fmt: 'long', ch: -1, min: 0, sort: 'score', sel: null };
+  root.innerHTML = appHead() + `<div class="d-top"><input type="search" id="dq" placeholder="Try: budget, home server, teardown, linux…" autofocus>
+      <div class="d-filters">
+        <select id="dfmt">${['long', 'mid', 'short', 'all'].map(f => `<option value="${f}">${FMT_LABEL[f] || 'All formats'}</option>`).join('')}</select>
+        <select id="dch"><option value="-1">All channels</option>${CHANNELS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+        <select id="dmin"><option value="0">Any score</option><option value="2">≥ 2×</option><option value="3">≥ 3×</option><option value="5">≥ 5×</option></select>
+        <select id="dsort"><option value="score">Best score</option><option value="new">Newest</option><option value="views">Most views</option></select>
+      </div></div><div class="d-sum" id="dsum"></div><div class="d-split"><div class="d-list" id="dlist"></div><div class="d-pane" id="dpane"></div></div>`;
+  const $ = s => root.querySelector(s);
+  const draw = () => {
+    let rs = VIDEOS.filter(v => (st.fmt === 'all' || v.fmt === st.fmt) && (st.ch < 0 || v.ch === st.ch) && matchQ(v, st.q));
+    const scored = rs.filter(v => v.score != null);
+    const outs = scored.filter(v => v.score >= 3);
+    const chans = new Set(rs.map(v => v.ch)), outChans = new Set(outs.map(v => v.ch));
+    $('#dsum').innerHTML = st.q ? `<div><span class="muted small">Matches</span><b>${rs.length}</b></div><div><span class="muted small">Channels using it</span><b>${chans.size}</b></div>
+        <div><span class="muted small">Median score</span><b>${scored.length ? fmtS(median(scored.map(v => v.score))) : '—'}</b></div>
+        <div><span class="muted small">Outlier rate</span><b>${scored.length ? Math.round(outs.length / scored.length * 100) + '%' : '—'}</b></div>
+        <div><span class="muted small">Channels with an outlier</span><b>${outChans.size}</b></div>
+        <div class="small muted" style="align-self:center;max-width:260px">How titles like “${esc(st.q)}” perform vs each Channel’s own norm.</div>`
+      : `<div class="small muted">No query — showing the <b>newest outliers</b> since recent Syncs. Type a title idea to see how it performs across Channels.</div>`;
+    if (!st.q) rs = rs.filter(v => v.outlier);
+    if (st.min) rs = rs.filter(v => (v.score ?? 0) >= st.min);
+    rs.sort(st.sort === 'new' || !st.q && st.sort === 'score' ? (a, b) => a.age - b.age : st.sort === 'views' ? (a, b) => b.views - a.views : (a, b) => (b.score ?? -1) - (a.score ?? -1));
+    if (!rs.includes(VIDEOS[st.sel])) st.sel = rs[0]?.id ?? null;
+    $('#dlist').innerHTML = rs.slice(0, 150).map(v => `<div class="d-item ${v.id === st.sel ? 'sel' : ''}" data-id="${v.id}"><div>${chip(v)}</div>
+        <div><div>${highlight(v.title, st.q)}${tags(v)}</div><div class="small muted">${esc(CHANNELS[v.ch].name)} · ${esc(TOPICS[v.topic].name)}</div></div>
+        <div class="small muted" style="text-align:right">${fmtN(v.views)}<br>${fmtAge(v.age)}</div></div>`).join('') || '<p class="muted" style="padding:14px">No matches.</p>';
+    $('#dpane').innerHTML = st.sel != null ? detailHTML(VIDEOS[st.sel]) : '<p class="muted">Select a video.</p>';
+  };
+  $('#dq').oninput = e => { st.q = e.target.value.trim(); draw(); };
+  $('#dfmt').onchange = e => { st.fmt = e.target.value; draw(); };
+  $('#dch').onchange = e => { st.ch = +e.target.value; draw(); };
+  $('#dmin').onchange = e => { st.min = +e.target.value; draw(); };
+  $('#dsort').onchange = e => { st.sort = e.target.value; draw(); };
+  $('#dlist').onclick = e => { const c = e.target.closest('[data-id]'); if (c) { st.sel = +c.dataset.id; draw(); } };
+  draw();
+}
+
+// ===================== variant switcher =====================
+const VARIANTS = [
+  { key: 'A', name: 'Table + facets', fn: VariantA },
+  { key: 'B', name: 'Topic board across channels', fn: VariantB },
+  { key: 'C', name: 'Channel swimlanes over time', fn: VariantC },
+  { key: 'D', name: 'Search-first, query scored', fn: VariantD },
+];
+function render() {
+  const key = new URLSearchParams(location.search).get('variant') || 'A';
+  const v = VARIANTS.find(x => x.key === key) || VARIANTS[0];
+  document.querySelector('.drawer')?.remove();
+  const app = document.getElementById('app'); app.innerHTML = '';
+  v.fn(app);
+  document.getElementById('vlabel').textContent = `${v.key} (${v.name})`;
+  document.title = `Prototype ${v.key} — ${v.name}`;
+}
+function cycle(d) {
+  const key = new URLSearchParams(location.search).get('variant') || 'A';
+  const i = (VARIANTS.findIndex(x => x.key === key) + d + VARIANTS.length) % VARIANTS.length;
+  const u = new URL(location.href); u.searchParams.set('variant', VARIANTS[i].key);
+  history.replaceState(null, '', u); render();
+}
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1);
+});
+render();
+</script>
+</body>
+</html>
