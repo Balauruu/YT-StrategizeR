@@ -8,7 +8,7 @@ Run it (needs Node and [uv](https://docs.astral.sh/uv/)):
 cd prototypes/browse-ui-react && npm install && npm run dev
 ```
 
-Then open http://localhost:5199. `npm run dev` starts the FastAPI fake-data API on :8765 (via `uv run`, no venv to manage) and Vite on :5199, which proxies `/api`. Switch variants with the bottom bar, `←`/`→`, or `?variant=E|F|G|H`.
+Then open http://localhost:5199. `npm run dev` starts the FastAPI fake-data API on :8765 (via `uv run`, no venv to manage) and Vite on :5199, which proxies `/api`. Switch variants with the bottom bar, `←`/`→`, or `?variant=E|F|G|H|I`.
 
 | Key | Variant | What the stack buys |
 | --- | --- | --- |
@@ -16,5 +16,6 @@ Then open http://localhost:5199. `npm run dev` starts the FastAPI fake-data API 
 | F | Linked resizable panels | `react-resizable-panels` workspace; Channels, Topics, score histogram and Videos cross-filter each other; layout remembered |
 | G | Zoomable Topic map | Canvas scatter of every Video on a (fake) 2D embedding map with `d3-zoom`; colour by Topic or tier; shift-drag to box-select a region of similar titles |
 | H | Topic × Channel heatmap | Median score / outlier count / volume per cell; hatched cells show Topics a Channel never covers |
+| I | **Consolidated: Videos · Topics · Channels** | The proposed v1 shell: three views sharing one filter bar (pills + ⌘K), one detail pane, and drill-down links between views. Folds in A/D/E (Videos), B/G (Topics), C (Channels) and F (cross-filtering as the shared model) |
 
 `server/app.py` generates the data and computes outlier scores the way the real backend would (per `docs/research/outlier-video-definition.md`). The frontend fetches `/api/data` once and filters client-side, which won't hold at 100k Videos: a real build would move filtering and paging to the API.

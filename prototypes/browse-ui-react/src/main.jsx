@@ -6,6 +6,7 @@ import VariantE from './VariantE.jsx';
 import VariantF from './VariantF.jsx';
 import VariantG from './VariantG.jsx';
 import VariantH from './VariantH.jsx';
+import VariantI from './VariantI.jsx';
 import './styles.css';
 
 const VARIANTS = [
@@ -13,6 +14,7 @@ const VARIANTS = [
   { key: 'F', name: 'Linked resizable panels', C: VariantF },
   { key: 'G', name: 'Zoomable Topic map', C: VariantG },
   { key: 'H', name: 'Topic × Channel heatmap', C: VariantH },
+  { key: 'I', name: 'Consolidated: Videos · Topics · Channels', C: VariantI },
 ];
 
 function App() {
