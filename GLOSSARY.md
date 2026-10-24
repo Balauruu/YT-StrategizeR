@@ -15,3 +15,6 @@ Adding a Channel by URL or handle, pulling its full Video list with metadata and
 
 **Sync**:
 Re-pulling an imported Channel to pick up new Videos and refresh stats.
+
+**Topic**:
+A named group of Videos with similar subject matter, derived from Video titles. Every Video belongs to exactly one Topic. Users can rename and merge Topics.
