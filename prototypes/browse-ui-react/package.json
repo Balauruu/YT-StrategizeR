@@ -1,0 +1,23 @@
+{
+  "name": "browse-ui-react-prototype",
+  "private": true,
+  "description": "PROTOTYPE (throwaway) for issue #7: Vite + React frontend over a Python FastAPI fake-data backend",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"uv run --with fastapi --with uvicorn uvicorn app:app --app-dir server --port 8765\" \"vite --open=false\""
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.22",
+    "cmdk": "^1.1.1",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-resizable-panels": "^4.14.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "vite": "^8.3.5"
+  }
+}
