@@ -35,6 +35,7 @@ Used by `/flow:wayfinder`. The map is an issue, and its tickets are its children
 - **Child ticket**: **Create an issue** with its `wayfinder:<type>` role's string as its label, then **Link parent** to the map.
 - **Frontier query**: the map's children with their state, assignees and open blockers, by **Children** and **Blockers** below, with the map as the parent.
 - **Claim**: `gh issue edit <n> --add-assignee @me`.
+- **Edit map**: `python3 -I ~/.claude/skills/flow:shared/scripts/map_edit.py pull <map> <file>`, edit `<file>`, then `python3 -I ~/.claude/skills/flow:shared/scripts/map_edit.py push <map> <file>`. Push writes only when the map is unchanged since the pull; on exit 3 a sibling session edited it first: pull again, re-apply your change, push again. Never `gh issue edit --body-file` on a map.
 - **Resolve**: `gh issue comment <n> --body-file <file>` with the resolution comment, then `gh issue close <n>`.
 
 ## Orchestration operations
